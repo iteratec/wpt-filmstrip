@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Filmstrip</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <link rel="stylesheet" href="https://cdn.rawgit.com/Chalarangelo/mini.css/v3.0.1/dist/mini-default.min.css">
+    <style>
+        body {
+        }
+        #app {
+            padding: 20px;
+        }
+
+        form {
+            display: flex;
+        }
+
+        .testUrl {
+            flex-grow: 1;
+        }
+
+        #stage {
+            display: flex;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            height: 3rem;
+            width: 3rem;
+            margin: 3rem 0 0 20rem;
+        }
+
+        #filmstrip {
+            background: white;
+            border-radius: 4px;
+            color: white;
+            padding: 20px;
+            display: grid;
+            overflow-x: auto;
+            grid-row-gap: 30px;
+        }
+
+        .thumbnail {
+            background: black;
+            cursor: pointer;
+        }
+
+        .thumbnail .time {
+            display: block;
+            text-align: center;
+            padding-bottom: 5px;
+        }
+
+        .thumbnail img {
+            text-align: center;
+            height: auto;
+            margin: 10px;
+        }
+
+        .thumbnail.hasChange .time {
+            font-weight: bold;
+        }
+
+        .thumbnail .metrics {
+            list-style: none outside;
+        }
+
+        .thumbnail .metrics li {
+            line-height: 1.2em;
+            font-size: 14px;
+        }
+        
+        .thumbnail .metrics .custom {
+            font-style: italic;
+        }
+
+        .thumbnail .metrics .highlight {
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h2>
+            WPT Filmstrip </small><a v-if="testUrl" :href="testUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
+        </h2>
+        <form>
+            <input class="testUrl" v-model="testUrl" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
+            <button type="button" @click="loadData" class="primary">Load Test</button>
+        </form>
+
+        <div class="stepSelection">
+            <label>Step:</label>
+            <select v-model="selectedStep" @change="updateFilmstrip">
+                <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
+            </select>
+        </div>
+        
+
+        <div class="customization">
+            <label>Thumbnail width:</label>
+            <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" />
+            <label>Columns:</label>
+            <input v-model="columns" type="number" min="0" :max="filmstrip.length" />
+            <label>Interval:</label>
+            <input v-model="interval" type="number" min="100" :max="5000" step="100" @input="updateFilmstrip"/>ms
+            <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+        </div>
+
+        <p v-if="error" class="card error">{{ error }}</p>
+        <div v-else-if="loading || filmstrip.length" id="stage">
+            <div v-if="loading" class="spinner"></div>
+            <div v-else id="filmstrip" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
+                <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
+                     class="thumbnail" :class="{hasChange: thumbnail.hasChange, hasMetric: !!thumbnail.metrics.length}">
+                    <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
+                    <span class="time">{{ thumbnail.timeFormatted }}</span>
+                    <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics">
+                        <li v-for="metric in thumbnail.metrics"
+                            :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <video id="player" muted="" preload="auto" width="408" height="288" poster="http://dev.server02.wpt.iteratec.de/results/video/18/11/22/Y7/0347baa58d0eab258c4aa6b45fe7d8c811/video.png">
+            <source src="http://dev.server02.wpt.iteratec.de/results/video/18/11/22/Y7/0347baa58d0eab258c4aa6b45fe7d8c811/video.mp4" type="video/mp4">
+        </video>
+        <!-- <iframe :src="videoUrl" width="400" height="400"></iframe> -->
+
+        <table class="horizontal">
+            <caption>Metrics</caption>
+            <thead>
+                <tr>
+                    <th v-for="timing in timings">{{ timing.name }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td v-for="timing in timings">{{ timing.value.toFixed(3) }}s</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+<script>
+
+const metrics = {
+    "FirstInteractive": "First Interactive",
+    "SpeedIndex": "Speed Index",
+    "TTFB": "Time to First Byte",
+    "TimeToInteractive": "Time to Interactive",
+    "domComplete": "DOM  Complete",
+    "domContentLoadedEventStart": "DOM Content Loaded",
+    "domInteractive": "DOM Interactive",
+    "firstContentfulPaint": "First Contentful Paint",
+    "firstMeaningfulPaint": "First Meaningful Paint",
+    "fullyLoaded": "Fully Loaded",
+    "lastVisualChange": "Last Visual Change",
+    "docTime": "Load Time (onload)",
+    "render": "Start Render",
+    "visualComplete": "Visually Complete",
+    "visualComplete85": "85% Visually Complete",
+    "visualComplete90": "90% Visually Complete",
+    "visualComplete95": "95% Visually Complete",
+    "visualComplete99": "99% Visually Complete",
+    "fullyLoadedCPUms": "CPU Busy Time"
+};
+
+const highlightMetrics = {
+    "docTime": true,
+    "FirstInteractive": true
+}
+
+var app = new Vue({
+    el: '#app',
+    data: {
+        wptUrl: "http://dev.server02.wpt.iteratec.de",
+        selectedRun: "1",
+        selectedStep: 1,
+        availableSteps: [],
+        testId: "181122_Y7_0347baa58d0eab258c4aa6b45fe7d8c8",
+        testData: null,
+        error: null,
+        filmstrip: [],
+        timings: [],
+        showTimings: true,
+        interval: 500,
+        columns: 5,
+        testLabel: "",
+        loading: false,
+        thumbnailWidth: 200,
+    },
+    created: function () {
+        if (this.wptUrl && this.testId) {
+            this.loadData();
+        }
+    },
+    computed: {
+        testUrl: function() {
+            if (!this.testData || !this.testId) {
+                return null;
+            }
+            return `${this.wptUrl}/result/${this.testId}/${this.selectedRun}/details/#waterfall_view_step${this.selectedStep}`;
+        },
+        videoUrl: function() {
+            if (!this.testData || !this.testId) {
+                return null;
+            }
+            return `${this.wptUrl}/video/create.php?tests=${this.testId}-r:${this.selectedRun}-c:0-s:${this.selectedStep}&id=${this.testId}${this.selectedRun}${this.selectedStep}`;
+        }
+    },
+    methods: {
+        loadData: function() {
+            this.loading = true;
+            fetchData(this.wptUrl, this.testId)
+                .then(response => {
+                    this.testData = response.data;
+                    this.updateFilmstrip();
+                })
+                .catch(error => this.error = "Failed to load data: " + error)
+                .then(() => this.loading = false);
+        },
+        updateFilmstrip: function() {
+            if (!(((((this.testData || {}).runs || {})[this.selectedRun] || {}).firstView || {}).steps || []).length) {
+                return;
+            }
+            const runData = this.testData.runs[this.selectedRun].firstView;
+            this.availableSteps = runData.steps.map(step => step.eventName || `Step ${step.id}`)
+            this.selectedStep = Math.min(this.selectedStep, runData.numSteps);
+            this.testLabel = this.testData.label + ",  " + (this.availableSteps[this.selectedStep - 1] || "");
+            const stepData = runData.steps[this.selectedStep - 1];
+            if (!stepData) {
+                throw "Invalid test data";
+            }
+            this.timings = createTimings(stepData);
+            this.filmstrip = createFilmstrip(stepData, Number(this.interval), this.timings);
+            console.log(this.filmstrip);
+            this.columns = Math.min(this.columns || 9999, this.filmstrip.length)
+        }
+    }
+})
+
+function createTimings(stepData) {
+    const userTimings = Object.keys(stepData.userTimes || {}).map(name => ({
+        name: name,
+        type: "user",
+        value: Number(stepData.userTimes[name]) / 1000,
+        highlight: false
+    }));
+    const heroTimings = Object.keys(stepData.heroElementTimes || {}).map(name => ({
+        name: "Hero: " + name,
+        type: "hero",
+        value: Number(stepData.heroElementTimes[name]) / 1000,
+        highlight: false
+    }));
+    const timings = Object.keys(metrics)
+        .filter(metric => stepData[metric] != undefined)
+        .map(metric => ({
+           name: metrics[metric],
+           type: "metric",
+           value: Number(stepData[metric]) / 1000,
+           highlight: !!highlightMetrics[metric]
+        }));
+    return [...timings, ...userTimings, ...heroTimings].sort((a, b) => a.value - b.value);
+}
+
+function createFilmstrip (stepData, interval, timings) {
+    const end = Math.max(stepData.fullyLoaded, stepData.visualComplete);
+    const filmstrip = [];
+    let lastVideoFrame = null;
+    for (let time = 0; time < end + interval; time += interval) {
+        const videoFrame = findFrame(stepData.videoFrames, time);
+        filmstrip.push({
+            time: time,
+            timeFormatted: (time / 1000.0).toFixed(1) + "s",
+            visuallyComplete: videoFrame.VisuallyComplete,
+            url: videoFrame.image,
+            frameTime: videoFrame.time,
+            hasChange: !lastVideoFrame || lastVideoFrame.time != videoFrame.time,
+            metrics: findTimings(timings, time - interval, time)
+        });
+        lastVideoFrame = videoFrame;
+    }
+    return filmstrip;
+}
+
+function fetchData(wptUrl, wptTestId) {
+    const wptParams = "average=0&median=0&standard=0&requests=0&console=0"
+    return fetch(`${wptUrl}/result/${wptTestId}/?f=json&${wptParams}`)
+        .then(response => response.json())
+        .then(testData => {
+            if (!testData || testData.statusCode != 200) {
+                throw (testData || {}).statusText || "Invalid response";
+            }
+            return testData;
+        })
+}
+
+function findFrame(videoFrames, time) {
+    let frame = videoFrames[0];
+    for (let currentFrame of videoFrames) {
+        if (time >= currentFrame.time) {
+            frame = currentFrame;
+        } else {
+            break;
+        }
+    }
+    return frame;
+}
+
+function findTimings(timings, start, end) {
+    return timings.filter(timing => timing.value > start / 1000 && timing.value <= end / 1000);
+}
+
+</script>
+</body>
+</html>
