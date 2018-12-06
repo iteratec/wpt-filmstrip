@@ -8,13 +8,11 @@
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <link rel="stylesheet" href="https://cdn.rawgit.com/Chalarangelo/mini.css/v3.0.1/dist/mini-default.min.css">
     <style>
-        body {
-        }
         #app {
             padding: 20px;
         }
 
-        form {
+        .testSelection {
             display: flex;
         }
 
@@ -34,18 +32,24 @@
         }
 
         #filmstrip {
-            background: white;
+            /*background: white;*/
             border-radius: 4px;
-            color: white;
             padding: 20px;
             display: grid;
             overflow-x: auto;
             grid-row-gap: 30px;
         }
 
+        .filmstripAnimation {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
         .thumbnail {
             background: black;
             cursor: pointer;
+            color: white;
         }
 
         .thumbnail .time {
@@ -86,69 +90,70 @@
 <body>
     <div id="app">
         <h2>
-            WPT Filmstrip </small><a v-if="testUrl" :href="testUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
+            WPT Filmstrip </small><a v-if="waterfallUrl" :href="waterfallUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
         </h2>
-        <form>
-            <input class="testUrl" v-model="testUrl" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
+        <div class="testSelection">
+            <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
             <button type="button" @click="loadData" class="primary">Load Test</button>
-        </form>
 
-        <div class="stepSelection">
             <label>Step:</label>
             <select v-model="selectedStep" @change="updateFilmstrip">
                 <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
             </select>
         </div>
-        
 
-        <div class="customization">
-            <label>Thumbnail width:</label>
-            <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" />
-            <label>Columns:</label>
-            <input v-model="columns" type="number" min="0" :max="filmstrip.length" />
-            <label>Interval:</label>
-            <input v-model="interval" type="number" min="100" :max="5000" step="100" @input="updateFilmstrip"/>ms
-            <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+        <div v-if="loading" class="spinner"></div>
+
+        <div v-else-if="showAnimation && filmstrip.length" class="card fluid filmstripAnimation">
+            <filmstrip-animation :filmstrip="filmstrip" :width="thumbnailWidth"></filmstrip-animation>
         </div>
-
-        <p v-if="error" class="card error">{{ error }}</p>
-        <div v-else-if="loading || filmstrip.length" id="stage">
-            <div v-if="loading" class="spinner"></div>
-            <div v-else id="filmstrip" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
-                <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
-                     class="thumbnail" :class="{hasChange: thumbnail.hasChange, hasMetric: !!thumbnail.metrics.length}">
-                    <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
-                    <span class="time">{{ thumbnail.timeFormatted }}</span>
-                    <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics">
-                        <li v-for="metric in thumbnail.metrics"
-                            :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
-                    </ul>
+        
+        <div v-else class="card fluid">
+            <div class="customization">
+                <label>Thumbnail width:</label>
+                <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" />
+                <label>Columns:</label>
+                <input v-model="columns" type="number" min="0" :max="filmstrip.length" />
+                <label>Interval:</label>
+                <input v-model="interval" type="number" min="100" :max="5000" step="100" @input="updateFilmstrip"/>ms
+                <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+            </div>
+            <p v-if="error" class="card error">{{ error }}</p>
+            <div v-else-if="filmstrip.length" id="stage">
+                <div :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
+                    <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
+                        class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
+                        <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
+                        <span class="time">{{ thumbnail.timeFormatted }}</span>
+                        <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics" :style="{'max-width': thumbnailWidth + 'px'}">
+                            <li v-for="metric in thumbnail.metrics"
+                                :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <video id="player" muted="" preload="auto" width="408" height="288" poster="http://dev.server02.wpt.iteratec.de/results/video/18/11/22/Y7/0347baa58d0eab258c4aa6b45fe7d8c811/video.png">
-            <source src="http://dev.server02.wpt.iteratec.de/results/video/18/11/22/Y7/0347baa58d0eab258c4aa6b45fe7d8c811/video.mp4" type="video/mp4">
-        </video>
-        <!-- <iframe :src="videoUrl" width="400" height="400"></iframe> -->
-
-        <table class="horizontal">
-            <caption>Metrics</caption>
-            <thead>
-                <tr>
-                    <th v-for="timing in timings">{{ timing.name }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td v-for="timing in timings">{{ timing.value.toFixed(3) }}s</td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="card fluid">
+            <table class="horizontal">
+                <caption>Metrics</caption>
+                <thead>
+                    <tr>
+                        <th v-for="timing in timings">{{ timing.name }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td v-for="timing in timings">{{ timing.value.toFixed(3) }}s</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 <script>
 
 const metrics = {
+    "LastInteractive": "Interactive",
     "FirstInteractive": "First Interactive",
     "SpeedIndex": "Speed Index",
     "TTFB": "Time to First Byte",
@@ -167,22 +172,69 @@ const metrics = {
     "visualComplete90": "90% Visually Complete",
     "visualComplete95": "95% Visually Complete",
     "visualComplete99": "99% Visually Complete",
-    "fullyLoadedCPUms": "CPU Busy Time"
+//    "fullyLoadedCPUms": "CPU Busy Time"
 };
 
 const highlightMetrics = {
     "docTime": true,
-    "FirstInteractive": true
+    "FirstInteractive": true,
+    "LastInteractive": true
 }
+Vue.component('filmstrip-animation', {
+    template: `
+        <div class="filmstripAnimation">
+            <div class="thumbnail">
+                <img :src="frame.url" :style="{width: width + 'px'}" />
+                <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
+                <ul class="metrics" :style="{'max-width': width + 'px'}">
+                    <li v-for="metric in frame.metrics"
+                        :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
+                </ul>
+            </div>
+            <button @click="start">Start</button>
+        </div>
+    `,
+    props: [
+        'filmstrip',
+        'width'
+    ],
+    data: function() { return {
+        frame: this.filmstrip[0],
+        time: 0,
+        end: 0,
+        slowdownFactor: 3
+    }},
+    methods: {
+        start: function() {
+            this.time = 0;
+            this.end = this.filmstrip[this.filmstrip.length - 1].time;
+            this.changeFrame();
+        },
+        changeFrame: function() {
+            const increment = 100;
+            if (this.time > this.end) {
+                return;
+            }
+            if (this.time == 0) {
+                this.frame = this.filmstrip[0];
+            }
+            setTimeout(() => {
+                this.time += increment;
+                this.frame = this.filmstrip.find(frame => frame.time == this.time) || this.frame;
+                this.changeFrame();
+            }, increment * this.slowdownFactor);
+        }
+    }
+});
 
 var app = new Vue({
     el: '#app',
     data: {
-        wptUrl: "http://dev.server02.wpt.iteratec.de",
+        wptUrl: "",
         selectedRun: "1",
         selectedStep: 1,
         availableSteps: [],
-        testId: "181122_Y7_0347baa58d0eab258c4aa6b45fe7d8c8",
+        testId: "",
         testData: null,
         error: null,
         filmstrip: [],
@@ -193,14 +245,17 @@ var app = new Vue({
         testLabel: "",
         loading: false,
         thumbnailWidth: 200,
+        testUrl: "",
+        showAnimation: true
     },
     created: function () {
-        if (this.wptUrl && this.testId) {
+        this.loadState();
+        if (this.testUrl) {
             this.loadData();
         }
     },
     computed: {
-        testUrl: function() {
+        waterfallUrl: function() {
             if (!this.testData || !this.testId) {
                 return null;
             }
@@ -215,6 +270,7 @@ var app = new Vue({
     },
     methods: {
         loadData: function() {
+            [this.wptUrl, this.testId, this.selectedStep] = parseTestUrl(this.testUrl);
             this.loading = true;
             fetchData(this.wptUrl, this.testId)
                 .then(response => {
@@ -239,10 +295,30 @@ var app = new Vue({
             this.timings = createTimings(stepData);
             this.filmstrip = createFilmstrip(stepData, Number(this.interval), this.timings);
             console.log(this.filmstrip);
-            this.columns = Math.min(this.columns || 9999, this.filmstrip.length)
+            this.columns = Math.min(this.columns || 9999, this.filmstrip.length);
+            this.saveState();
+        },
+        loadState: function() {
+            this.testUrl = localStorage.getItem('loadedTestUrl') || this.testUrl;
+            this.columns = Number(localStorage.getItem('columns')) || this.columns;
+            this.interval = Number(localStorage.getItem('interval')) || this.interval;
+        },
+        saveState: function() {
+            localStorage.setItem('loadedTestUrl', this.testUrl);
+            localStorage.setItem('columns', this.columns);
+            localStorage.setItem('interval', this.interval);
         }
     }
 })
+
+function parseTestUrl(testUrl) {
+    const [protocol, url] = testUrl.split("://", 2);
+    const parts = url.split("/");
+    const testId = parts[1] == "result" ? parts[2] : "";
+    const stepMatches = /_step(\d+)$/.exec(parts[parts.length - 1]);
+    const step = stepMatches ? stepMatches[1] : 1;
+    return [protocol + "://" + parts[0], testId, step];
+}
 
 function createTimings(stepData) {
     const userTimings = Object.keys(stepData.userTimes || {}).map(name => ({
@@ -269,7 +345,7 @@ function createTimings(stepData) {
 }
 
 function createFilmstrip (stepData, interval, timings) {
-    const end = Math.max(stepData.fullyLoaded, stepData.visualComplete);
+    const end = Math.max(...timings.map(t => t.value)) * 1000;
     const filmstrip = [];
     let lastVideoFrame = null;
     for (let time = 0; time < end + interval; time += interval) {
