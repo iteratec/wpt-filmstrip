@@ -10,7 +10,6 @@
     <style>
         :root {
             --fore-color: #e2e2e2;
-            --a-link-color: #1976d2;
             --input-border-color: #212121;
             --input-fore-color: #e2e2e2;
             --input-back-color: #212121;
@@ -65,7 +64,7 @@
 
         .filmstripView .stage {
             display: flex;
-            margin: 20px 0;
+            margin: 20px;
             display: grid;
             overflow-x: auto;
             grid-row-gap: 30px;
@@ -115,7 +114,7 @@
         .thumbnail img {
             text-align: center;
             height: auto;
-            margin: 10px;
+            margin: 10px 5px;
         }
 
         .thumbnail.hasChange .time {
@@ -124,15 +123,20 @@
 
         .thumbnail .metrics {
             list-style: none outside;
+            padding: 0;
         }
 
         .thumbnail .metrics li {
             line-height: 1.2em;
             font-size: 12px;
+            white-space: nowrap;
+            margin-bottom: 0.2em;
         }
         
         .thumbnail .metrics .custom {
             font-style: italic;
+            word-break: break-all;
+            white-space: normal;
         }
 
         .thumbnail .metrics .highlight {
@@ -156,7 +160,8 @@
                 <button type="button" @click="loadData" class="primary">Load Test</button>
 
                 <label>Step:</label>
-                <select v-model="selectedStep" @change="updateFilmstrip">
+                <select v-model="selectedStep" @change="updateFilmstrip" :disabled="!availableSteps.length">
+                    <option v-if="!availableSteps.length">Load a test first</option>
                     <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
                 </select>
                 <select v-model="showAnimation">
@@ -170,13 +175,10 @@
             <div v-if="loading" class="spinner"></div>
 
             <div v-else-if="showAnimation && filmstrip.length" class="animationView">
-                <div class="customization">
-                    <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
-                </div>
                 <filmstrip-animation :filmstrip="filmstrip" :show-timings="showTimings"></filmstrip-animation>
             </div>
             
-            <div v-else class="filmstripView">
+            <div v-else-if="filmstrip.length" class="filmstripView">
                 <div class="customization">
                     <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
                     <label>Thumbnail width:</label>
@@ -252,11 +254,17 @@ const metrics = {
 const highlightMetrics = {
     "docTime": true,
     "FirstInteractive": true,
-    "LastInteractive": true
+    "LastInteractive": true,
+    "fullyLoaded": true
 }
 Vue.component('filmstrip-animation', {
     template: `
         <div class="animationView">
+            <div class="customization">
+                <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                <label>Slowdown factor:</label>
+                <input v-model="slowdownFactor" type="number" min="1" max="50" step="1" />
+            </div>
             <button v-if="isStarted" @click="pause">Pause</button>
             <button v-else-if="paused" @click="resume">Resume</button>
             <button v-else @click="start">Start</button>
@@ -272,13 +280,21 @@ Vue.component('filmstrip-animation', {
     `,
     props: [
         'filmstrip',
-        'showTimings'
     ],
+    watch: { 
+        filmstrip: function(newFilmstrip) { 
+            this.time = 0;
+            this.paused = false;
+            this.end = 0;
+            this.frame = newFilmstrip[0];
+        }
+    },
     data: function() { return {
         frame: this.filmstrip[0],
         time: 0,
         end: 0,
-        slowdownFactor: 3,
+        slowdownFactor: 4,
+        showTimings: false,
         width: 400,
         paused: false
     }},
@@ -309,11 +325,13 @@ Vue.component('filmstrip-animation', {
             if (this.time == 0) {
                 this.frame = this.filmstrip[0];
             }
+            const shouldWait = this.frame.time == this.time && this.frame.metrics.some(metric => metric.highlight) && this.showTimings;
+            const waitFactor = shouldWait ? 5 : 1;
             setTimeout(() => {
                 this.time += increment;
                 this.frame = this.filmstrip.find(frame => frame.time == this.time) || this.frame;
                 this.changeFrame();
-            }, increment * this.slowdownFactor);
+            }, increment * this.slowdownFactor * waitFactor);
         }
     }
 });
