@@ -6,48 +6,102 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Filmstrip</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-    <link rel="stylesheet" href="https://cdn.rawgit.com/Chalarangelo/mini.css/v3.0.1/dist/mini-default.min.css">
+    <link rel="stylesheet" href="mini-dark.min.css">
     <style>
-        #app {
+        :root {
+            --fore-color: #e2e2e2;
+            --a-link-color: #1976d2;
+            --input-border-color: #212121;
+            --input-fore-color: #e2e2e2;
+            --input-back-color: #212121;
+            --card-border-color: #212121;
+        }
+
+        h2 {
+            margin: 0;
             padding: 20px;
         }
 
         .testSelection {
+            padding: 0 20px 20px 20px;
             display: flex;
+            align-items: center;
         }
 
-        .testUrl {
+        .testSelection .testUrl {
+            margin-right: 0;
+            margin-left: 0;
+            border-right: 0;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
             flex-grow: 1;
         }
 
-        #stage {
+        .testSelection .primary {
+            margin-left: 0;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        main {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 70vh;
+            position: relative;
+        }
+
+        .customization {
+            position: absolute;
+            right: 0;
+            display: flex;
+            flex-direction: column;
+            padding-right: 20px;
+        }
+
+        .filmstripView  {
+            width: 100%;
+        }
+
+        .filmstripView .stage {
             display: flex;
             margin: 20px 0;
-        }
-
-        .spinner {
-            height: 3rem;
-            width: 3rem;
-            margin: 3rem 0 0 20rem;
-        }
-
-        #filmstrip {
-            /*background: white;*/
-            border-radius: 4px;
-            padding: 20px;
             display: grid;
             overflow-x: auto;
             grid-row-gap: 30px;
         }
 
-        .filmstripAnimation {
+        .spinner {
+            height: 5rem;
+            width: 5rem;
+        }
+
+        .animationView {
             display: flex;
             flex-direction: column;
             align-items: center;
+            margin-bottom: 150px;
+        }
+
+        .animationView .thumbnail img {
+            border-radius: var(--universal-border-radius);
+        }
+
+        .animationView .thumbnail .metrics {
+            display: block;
+            position: absolute;
+            height: 50vh;
+            right: calc(50% + 220px);
+            padding: 0 20px;
+            top: 200px;
+        }
+
+        .animationView .thumbnail .metrics li {
+            font-size: 16px;
         }
 
         .thumbnail {
-            background: black;
+            /*background: black;*/
             cursor: pointer;
             color: white;
         }
@@ -74,7 +128,7 @@
 
         .thumbnail .metrics li {
             line-height: 1.2em;
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .thumbnail .metrics .custom {
@@ -85,42 +139,55 @@
             font-weight: bold;
             color: white;
         }
+
+        .framePreload {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div id="app">
-        <h2>
-            WPT Filmstrip </small><a v-if="waterfallUrl" :href="waterfallUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
-        </h2>
-        <div class="testSelection">
-            <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
-            <button type="button" @click="loadData" class="primary">Load Test</button>
+        <div class="header">
+            <h2>
+                WPT Filmstrip </small><a v-if="waterfallUrl" :href="waterfallUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
+            </h2>
+            <div class="testSelection">
+                <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
+                <button type="button" @click="loadData" class="primary">Load Test</button>
 
-            <label>Step:</label>
-            <select v-model="selectedStep" @change="updateFilmstrip">
-                <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
-            </select>
-        </div>
-
-        <div v-if="loading" class="spinner"></div>
-
-        <div v-else-if="showAnimation && filmstrip.length" class="card fluid filmstripAnimation">
-            <filmstrip-animation :filmstrip="filmstrip" :width="thumbnailWidth"></filmstrip-animation>
-        </div>
-        
-        <div v-else class="card fluid">
-            <div class="customization">
-                <label>Thumbnail width:</label>
-                <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" />
-                <label>Columns:</label>
-                <input v-model="columns" type="number" min="0" :max="filmstrip.length" />
-                <label>Interval:</label>
-                <input v-model="interval" type="number" min="100" :max="5000" step="100" @input="updateFilmstrip"/>ms
-                <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                <label>Step:</label>
+                <select v-model="selectedStep" @change="updateFilmstrip">
+                    <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
+                </select>
+                <select v-model="showAnimation">
+                    <option :value="true">Animation</option>
+                    <option :value="false">Filmstrip</option>
+                </select>
             </div>
-            <p v-if="error" class="card error">{{ error }}</p>
-            <div v-else-if="filmstrip.length" id="stage">
-                <div :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
+        </div>
+
+        <main>
+            <div v-if="loading" class="spinner"></div>
+
+            <div v-else-if="showAnimation && filmstrip.length" class="animationView">
+                <div class="customization">
+                    <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                </div>
+                <filmstrip-animation :filmstrip="filmstrip" :show-timings="showTimings"></filmstrip-animation>
+            </div>
+            
+            <div v-else class="filmstripView">
+                <div class="customization">
+                    <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                    <label>Thumbnail width:</label>
+                    <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" />
+                    <label>Columns:</label>
+                    <input v-model="columns" type="number" min="0" :max="filmstrip.length" />
+                    <label>Interval (ms):</label>
+                    <input v-model="interval" type="number" min="100" :max="5000" step="100" @input="updateFilmstrip"/>
+                </div>
+                <p v-if="error" class="card error">{{ error }}</p>
+                <div v-else-if="filmstrip.length" class="stage" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
                     <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
                         class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
                         <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
@@ -132,9 +199,13 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
 
-        <div class="card fluid">
+        <!-- <div class="card fluid">
+            <timeline></timeline>
+        </div> -->
+
+        <div class="card fluid" v-if="showTimings && timings.length">
             <table class="horizontal">
                 <caption>Metrics</caption>
                 <thead>
@@ -148,6 +219,9 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+        <div class="framePreload">
+            <img v-for="url in frameImages" :src="url" />
         </div>
     </div>
 <script>
@@ -182,37 +256,54 @@ const highlightMetrics = {
 }
 Vue.component('filmstrip-animation', {
     template: `
-        <div class="filmstripAnimation">
+        <div class="animationView">
+            <button v-if="isStarted" @click="pause">Pause</button>
+            <button v-else-if="paused" @click="resume">Resume</button>
+            <button v-else @click="start">Start</button>
             <div class="thumbnail">
                 <img :src="frame.url" :style="{width: width + 'px'}" />
                 <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
-                <ul class="metrics" :style="{'max-width': width + 'px'}">
+                <ul v-if="showTimings && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
                     <li v-for="metric in frame.metrics"
                         :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
                 </ul>
             </div>
-            <button @click="start">Start</button>
         </div>
     `,
     props: [
         'filmstrip',
-        'width'
+        'showTimings'
     ],
     data: function() { return {
         frame: this.filmstrip[0],
         time: 0,
         end: 0,
-        slowdownFactor: 3
+        slowdownFactor: 3,
+        width: 400,
+        paused: false
     }},
+    computed: {
+        isStarted: function() {
+            return this.time < this.end && !this.paused;
+        }
+    },
     methods: {
         start: function() {
             this.time = 0;
+            this.paused = false;
             this.end = this.filmstrip[this.filmstrip.length - 1].time;
+            this.changeFrame();
+        },
+        pause: function() {
+            this.paused = true;
+        },
+        resume: function() {
+            this.paused = false;
             this.changeFrame();
         },
         changeFrame: function() {
             const increment = 100;
-            if (this.time > this.end) {
+            if (!this.isStarted) {
                 return;
             }
             if (this.time == 0) {
@@ -224,6 +315,21 @@ Vue.component('filmstrip-animation', {
                 this.changeFrame();
             }, increment * this.slowdownFactor);
         }
+    }
+});
+
+Vue.component('timeline', {
+    template: `
+        
+    `,
+    props: [
+        'filmstrip'
+    ],
+    data: function() { return {
+
+    }},
+    methods: {
+
     }
 });
 
@@ -239,14 +345,15 @@ var app = new Vue({
         error: null,
         filmstrip: [],
         timings: [],
-        showTimings: true,
+        showTimings: false,
         interval: 500,
-        columns: 5,
+        columns: 9,
         testLabel: "",
         loading: false,
-        thumbnailWidth: 200,
+        thumbnailWidth: 150,
         testUrl: "",
-        showAnimation: true
+        showAnimation: true,
+        frameImages: []
     },
     created: function () {
         this.loadState();
@@ -294,6 +401,7 @@ var app = new Vue({
             }
             this.timings = createTimings(stepData);
             this.filmstrip = createFilmstrip(stepData, Number(this.interval), this.timings);
+            this.frameImages = stepData.videoFrames.map(frame => frame.image);
             console.log(this.filmstrip);
             this.columns = Math.min(this.columns || 9999, this.filmstrip.length);
             this.saveState();
