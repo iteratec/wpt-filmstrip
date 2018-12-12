@@ -1,0 +1,156 @@
+:root {
+    --back-color: #1e1e1e;
+    --fore-color: #adadad;
+    --input-border-color: #252526;
+    --input-fore-color: #adadad;
+    --input-back-color: #252526;
+    --card-border-color: #252526;
+}
+
+h2 {
+    margin: 0;
+    padding: 20px;
+}
+
+.testSelection {
+    padding: 0 20px 20px 20px;
+    display: flex;
+    align-items: center;
+}
+
+.testSelection .testUrl {
+    margin-right: 0;
+    margin-left: 0;
+    border-right: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    flex-grow: 1;
+}
+
+.testSelection .primary {
+    margin-left: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    position: relative;
+}
+
+.customization {
+    position: absolute;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    padding-right: 20px;
+}
+
+.customization input{
+    margin: 0;
+}
+
+.customization label {
+    padding: 0;
+}
+
+.customization br {
+    margin-bottom: 1em;
+}
+
+.filmstripView  {
+    width: 100%;
+}
+
+.filmstripView .stage {
+    display: flex;
+    margin: 20px;
+    display: grid;
+    overflow-x: auto;
+    grid-row-gap: 30px;
+}
+
+.spinner {
+    height: 5rem;
+    width: 5rem;
+}
+
+.animationView {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 150px;
+}
+
+.animationView .thumbnail img {
+    border-radius: var(--universal-border-radius);
+}
+
+.animationView .thumbnail .time {
+    font-size: 2.5em;
+}
+
+.animationView .thumbnail .metrics {
+    display: block;
+    position: absolute;
+    height: 50vh;
+    right: calc(50% + 220px);
+    padding: 0 20px;
+    top: 200px;
+}
+
+.animationView .thumbnail .metrics li {
+    font-size: 16px;
+}
+
+.thumbnail {
+    /*background: black;*/
+    cursor: pointer;
+    color: white;
+}
+
+.thumbnail .time {
+    display: block;
+    text-align: center;
+    padding-bottom: 5px;
+}
+
+.thumbnail img {
+    text-align: center;
+    height: auto;
+    margin: 10px 5px;
+}
+
+.thumbnail.hasChange .time, .thumbnail.hasMetric .time {
+    font-weight: bold;
+}
+
+.thumbnail .metrics {
+    list-style: none outside;
+    padding: 0;
+}
+
+.thumbnail .metrics li {
+    line-height: 1.2em;
+    font-size: 12px;
+    white-space: nowrap;
+    margin-bottom: 0.2em;
+}
+
+.thumbnail .metrics .custom {
+    font-style: italic;
+    word-break: break-all;
+    white-space: normal;
+}
+
+.thumbnail .metrics .highlight {
+    font-weight: bold;
+    color: white;
+}
+
+.framePreload {
+    display: none;
+}

@@ -4,167 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Filmstrip</title>
+    <title>WPT Filmstrip</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <link rel="stylesheet" href="mini-dark.min.css">
-    <style>
-        :root {
-            --back-color: #1e1e1e;
-            --fore-color: #adadad;
-            --input-border-color: #252526;
-            --input-fore-color: #adadad;
-            --input-back-color: #252526;
-            --card-border-color: #252526;
-        }
-
-        h2 {
-            margin: 0;
-            padding: 20px;
-        }
-
-        .testSelection {
-            padding: 0 20px 20px 20px;
-            display: flex;
-            align-items: center;
-        }
-
-        .testSelection .testUrl {
-            margin-right: 0;
-            margin-left: 0;
-            border-right: 0;
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-            flex-grow: 1;
-        }
-
-        .testSelection .primary {
-            margin-left: 0;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-        }
-
-        main {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 70vh;
-            position: relative;
-        }
-
-        .customization {
-            position: absolute;
-            right: 0;
-            display: flex;
-            flex-direction: column;
-            padding-right: 20px;
-        }
-
-        .customization input{
-            margin: 0;
-        }
-
-        .customization label {
-            padding: 0;
-        }
-
-        .customization br {
-            margin-bottom: 1em;
-        }
-
-        .filmstripView  {
-            width: 100%;
-        }
-
-        .filmstripView .stage {
-            display: flex;
-            margin: 20px;
-            display: grid;
-            overflow-x: auto;
-            grid-row-gap: 30px;
-        }
-
-        .spinner {
-            height: 5rem;
-            width: 5rem;
-        }
-
-        .animationView {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 150px;
-        }
-
-        .animationView .thumbnail img {
-            border-radius: var(--universal-border-radius);
-        }
-
-        .animationView .thumbnail .time {
-            font-size: 2.5em;
-        }
-
-        .animationView .thumbnail .metrics {
-            display: block;
-            position: absolute;
-            height: 50vh;
-            right: calc(50% + 220px);
-            padding: 0 20px;
-            top: 200px;
-        }
-
-        .animationView .thumbnail .metrics li {
-            font-size: 16px;
-        }
-
-        .thumbnail {
-            /*background: black;*/
-            cursor: pointer;
-            color: white;
-        }
-
-        .thumbnail .time {
-            display: block;
-            text-align: center;
-            padding-bottom: 5px;
-        }
-
-        .thumbnail img {
-            text-align: center;
-            height: auto;
-            margin: 10px 5px;
-        }
-
-        .thumbnail.hasChange .time, .thumbnail.hasMetric .time {
-            font-weight: bold;
-        }
-
-        .thumbnail .metrics {
-            list-style: none outside;
-            padding: 0;
-        }
-
-        .thumbnail .metrics li {
-            line-height: 1.2em;
-            font-size: 12px;
-            white-space: nowrap;
-            margin-bottom: 0.2em;
-        }
-        
-        .thumbnail .metrics .custom {
-            font-style: italic;
-            word-break: break-all;
-            white-space: normal;
-        }
-
-        .thumbnail .metrics .highlight {
-            font-weight: bold;
-            color: white;
-        }
-
-        .framePreload {
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="filmstrip.css">
 </head>
 <body>
     <div id="app">
@@ -177,11 +20,11 @@
                 <button type="button" @click="loadData" class="primary">Load Test</button>
 
                 <label>Step:</label>
-                <select v-model="selectedStep" @change="updateFilmstrip" :disabled="!availableSteps.length">
+                <select v-model="selectedStep" @change="updateTestData" :disabled="!availableSteps.length">
                     <option v-if="!availableSteps.length">Load a test first</option>
                     <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
                 </select>
-                <select v-model="showAnimation" @change="updateFilmstrip">
+                <select v-model="showAnimation">
                     <option :value="true">Animation</option>
                     <option :value="false">Filmstrip</option>
                 </select>
@@ -191,53 +34,33 @@
         <main>
             <div v-if="loading" class="spinner"></div>
 
-            <div v-else-if="showAnimation && filmstrip.length" class="animationView">
-                <filmstrip-animation :increment="animationIncrement" :filmstrip="filmstrip"></filmstrip-animation>
+            <p v-else-if="error" class="card error">{{ error }}</p>
+
+            <div v-else-if="showAnimation && stepData" class="animationView">
+                <filmstrip-animation :step-data="stepData" :timings="timings"></filmstrip-animation>
             </div>
-            
-            <div v-else-if="filmstrip.length" class="filmstripView">
-                <div class="customization">
-                    <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
-                    <label>Thumbnail width:</label>
-                    <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" />
-                    <label>Columns:</label>
-                    <input v-model="columns" type="number" min="0" :max="filmstrip.length" />
-                    <label>Interval (ms):</label>
-                    <input v-model="interval" type="number" min="100" :max="5000" step="100" @input="updateFilmstrip"/>
-                </div>
-                <p v-if="error" class="card error">{{ error }}</p>
-                <div v-else-if="filmstrip.length" class="stage" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
-                    <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
-                        class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
-                        <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
-                        <span class="time">{{ thumbnail.timeFormatted }}</span>
-                        <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics" :style="{'max-width': thumbnailWidth + 'px'}">
-                            <li v-for="metric in thumbnail.metrics"
-                                :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
-                        </ul>
-                    </div>
-                </div>
+            <div v-else-if="stepData" class="filmstripView">
+                <filmstrip-view :step-data="stepData" :timings="timings"></filmstrip-view>
             </div>
         </main>
 
-        <!-- <div class="card fluid">
-            <timeline></timeline>
-        </div> -->
-
-        <div class="card fluid" v-if="showTimings && timings.length">
-            <table class="horizontal">
-                <caption>Metrics</caption>
-                <thead>
-                    <tr>
-                        <th v-for="timing in timings">{{ timing.name }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td v-for="timing in timings">{{ timing.value.toFixed(3) }}s</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="collapse" v-if="timings.length">
+            <input type="checkbox" id="collapse-metrics" aria-hidden="true">
+            <label for="collapse-metrics" aria-hidden="true">Show Metrics</label>
+            <div class="card fluid">
+                <table class="horizontal">
+                    <thead>
+                        <tr>
+                            <th v-for="timing in timings">{{ timing.name }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td v-for="timing in timings">{{ timing.value.toFixed(3) }}s</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
         <div class="framePreload">
             <img v-for="url in frameImages" :src="url" />
@@ -265,7 +88,6 @@ const metrics = {
     "visualComplete90": "90% Visually Complete",
     "visualComplete95": "95% Visually Complete",
     "visualComplete99": "99% Visually Complete",
-//    "fullyLoadedCPUms": "CPU Busy Time"
 };
 
 const highlightMetrics = {
@@ -288,13 +110,13 @@ Vue.component('filmstrip-animation', {
                 <span><kbd>Space</kbd> Resume/Pause</span>
             </div>
             <div class="controls">
-                <button @click="previousFrame" :disabled="this.time < this.increment">-0.1s</button>
+                <button @click="previousFrame" :disabled="this.time < this.interval">-0.1s</button>
                 <button v-if="isStarted" @click="pause">Pause</button>
                 <button v-else-if="paused && time > 0" @click="resume">Resume</button>
                 <button v-else @click="start">Start</button>
                 <button @click="nextFrame" :disabled="this.time > this.end">+0.1s</button>
             </div>
-            <div class="thumbnail" :class="{hasMetric: !!frame.metrics.length}">
+            <div v-if="frame" class="thumbnail" :class="{hasMetric: !!frame.metrics.length}">
                 <img :src="frame.url" :style="{width: width + 'px'}" />
                 <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
                 <ul v-if="showTimings && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
@@ -305,23 +127,25 @@ Vue.component('filmstrip-animation', {
         </div>
     `,
     props: [
-        'filmstrip',
-        'increment'
+        'stepData',
+        'timings'
     ],
     watch: { 
-        filmstrip: function() { 
+        stepData: function() { 
             this.reset();
         }
     },
     data: function() { return {
-        frame: this.filmstrip[0],
+        frame: null,
         time: 0,
         end: 0,
         slowdownFactor: 4,
         showTimings: false,
         width: 400,
         paused: false,
-        keydownHandler: null
+        keydownHandler: null,
+        interval: 100,
+        filmstrip: []
     }},
     created: function() {
         this.reset();
@@ -364,6 +188,10 @@ Vue.component('filmstrip-animation', {
             this.resume();
         },
         reset: function() {
+            if (!this.stepData) {
+                return;
+            }
+            this.filmstrip = createFilmstrip(this.stepData, this.interval, this.timings);
             this.time = 0;
             this.paused = true;
             this.end = this.filmstrip[this.filmstrip.length - 1].time;
@@ -388,37 +216,87 @@ Vue.component('filmstrip-animation', {
             setTimeout(() => {
                 this.nextFrame();
                 this.animate();
-            }, this.increment * this.slowdownFactor * waitFactor);
+            }, this.interval * this.slowdownFactor * waitFactor);
         },
         previousFrame: function() {
-            if (this.time >= this.increment) {
-                this.updateFrame(-this.increment);
+            if (this.time >= this.interval) {
+                this.updateFrame(-this.interval);
             }
         },
         nextFrame: function() {
             if (this.time <= this.end) {
-                this.updateFrame(this.increment);
+                this.updateFrame(this.interval);
             }
         },
-        updateFrame: function(increment) {
-            this.time += increment;
+        updateFrame: function(interval) {
+            this.time += interval;
             this.frame = this.filmstrip.find(frame => frame.time == this.time) || this.frame;
         }
     }
 });
 
-Vue.component('timeline', {
+Vue.component('fimstrip-view', {
     template: `
-        
+        <div class="customization">
+            <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+            <label>Thumbnail width:</label>
+            <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" @change="saveState" />
+            <label>Columns:</label>
+            <input v-model="columns" type="number" min="0" :max="filmstrip.length" @change="updateFilmstrip" />
+            <label>Interval (ms):</label>
+            <input v-model="interval" type="number" min="100" :max="5000" step="100" @change="updateFilmstrip" />
+        </div>
+        <div class="stage" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
+            <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
+                class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
+                <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
+                <span class="time">{{ thumbnail.timeFormatted }}</span>
+                <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics" :style="{'max-width': thumbnailWidth + 'px'}">
+                    <li v-for="metric in thumbnail.metrics"
+                        :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
+                </ul>
+            </div>
+        </div>
     `,
     props: [
-        'filmstrip'
+        "stepData",
+        "timings"
     ],
     data: function() { return {
-
+        showTimings: false,
+        thumbnailWidth: 150,
+        interval: 200,
+        columns: 9,
+        interval: 500,
+        filmstrip: []
     }},
+    watch: { 
+        stepData: function() { 
+            this.reset();
+        }
+    },
+    created: function() {
+        this.loadState();
+        this.updateFilmstrip();
+    },
     methods: {
-
+        updateFilmstrip: function() {
+            if (!this.stepData) {
+                return;
+            }
+            this.filmstrip = createFilmstrip(this.stepData, this.interval, this.timings)
+            this.saveState();
+        },
+        loadState: function() {
+            this.columns = Number(localStorage.getItem('filmstripView.columns')) || this.columns;
+            this.interval = Number(localStorage.getItem('filmstripView.interval')) || this.interval;
+            this.interval = Number(localStorage.getItem('filmstripView.thumbnailWidth')) || this.thumbnailWidth;
+        },
+        saveState: function() {
+            localStorage.setItem('filmstripView.columns', this.columns);
+            localStorage.setItem('filmstripView.interval', this.interval);
+            localStorage.setItem('filmstripView.thumbnailWidth', this.thumbnailWidth);
+        }
     }
 });
 
@@ -432,17 +310,12 @@ var app = new Vue({
         testId: "",
         testData: null,
         error: null,
-        filmstrip: [],
+        stepData: null,
         timings: [],
-        showTimings: false,
-        interval: 500,
-        columns: 9,
         testLabel: "",
         loading: false,
-        thumbnailWidth: 150,
         testUrl: "",
         showAnimation: true,
-        animationIncrement: 100,
         frameImages: []
     },
     created: function () {
@@ -472,12 +345,12 @@ var app = new Vue({
             fetchData(this.wptUrl, this.testId)
                 .then(response => {
                     this.testData = response.data;
-                    this.updateFilmstrip();
+                    this.updateTestData();
                 })
                 .catch(error => this.error = "Failed to load data: " + error)
                 .then(() => this.loading = false);
         },
-        updateFilmstrip: function() {
+        updateTestData: function() {
             if (!(((((this.testData || {}).runs || {})[this.selectedRun] || {}).firstView || {}).steps || []).length) {
                 return;
             }
@@ -485,27 +358,19 @@ var app = new Vue({
             this.availableSteps = runData.steps.map(step => step.eventName || `Step ${step.id}`)
             this.selectedStep = Math.min(this.selectedStep, runData.numSteps);
             this.testLabel = this.testData.label + ",  " + (this.availableSteps[this.selectedStep - 1] || "");
-            const stepData = runData.steps[this.selectedStep - 1];
-            if (!stepData) {
+            this.stepData = runData.steps[this.selectedStep - 1];
+            if (!this.stepData) {
                 throw "Invalid test data";
             }
-            const interval = this.showAnimation ? this.animationIncrement : Number(this.interval);
-            this.timings = createTimings(stepData);
-            this.filmstrip = createFilmstrip(stepData, interval, this.timings);
-            this.frameImages = stepData.videoFrames.map(frame => frame.image);
-            console.log(this.filmstrip);
-            this.columns = Math.min(this.columns || 9999, this.filmstrip.length);
+            this.timings = createTimings(this.stepData);
+            this.frameImages = this.stepData.videoFrames.map(frame => frame.image);
             this.saveState();
         },
         loadState: function() {
             this.testUrl = localStorage.getItem('loadedTestUrl') || this.testUrl;
-            this.columns = Number(localStorage.getItem('columns')) || this.columns;
-            this.interval = Number(localStorage.getItem('interval')) || this.interval;
         },
         saveState: function() {
             localStorage.setItem('loadedTestUrl', this.testUrl);
-            localStorage.setItem('columns', this.columns);
-            localStorage.setItem('interval', this.interval);
         }
     }
 })
