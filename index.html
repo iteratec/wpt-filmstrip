@@ -9,11 +9,12 @@
     <link rel="stylesheet" href="mini-dark.min.css">
     <style>
         :root {
-            --fore-color: #e2e2e2;
-            --input-border-color: #212121;
-            --input-fore-color: #e2e2e2;
-            --input-back-color: #212121;
-            --card-border-color: #212121;
+            --back-color: #1e1e1e;
+            --fore-color: #adadad;
+            --input-border-color: #252526;
+            --input-fore-color: #adadad;
+            --input-back-color: #252526;
+            --card-border-color: #252526;
         }
 
         h2 {
@@ -56,6 +57,18 @@
             display: flex;
             flex-direction: column;
             padding-right: 20px;
+        }
+
+        .customization input{
+            margin: 0;
+        }
+
+        .customization label {
+            padding: 0;
+        }
+
+        .customization br {
+            margin-bottom: 1em;
         }
 
         .filmstripView  {
@@ -117,7 +130,7 @@
             margin: 10px 5px;
         }
 
-        .thumbnail.hasChange .time {
+        .thumbnail.hasChange .time, .thumbnail.hasMetric .time {
             font-weight: bold;
         }
 
@@ -164,7 +177,7 @@
                     <option v-if="!availableSteps.length">Load a test first</option>
                     <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
                 </select>
-                <select v-model="showAnimation">
+                <select v-model="showAnimation" @change="updateFilmstrip">
                     <option :value="true">Animation</option>
                     <option :value="false">Filmstrip</option>
                 </select>
@@ -175,7 +188,7 @@
             <div v-if="loading" class="spinner"></div>
 
             <div v-else-if="showAnimation && filmstrip.length" class="animationView">
-                <filmstrip-animation :filmstrip="filmstrip" :show-timings="showTimings"></filmstrip-animation>
+                <filmstrip-animation :increment="animationIncrement" :filmstrip="filmstrip"></filmstrip-animation>
             </div>
             
             <div v-else-if="filmstrip.length" class="filmstripView">
@@ -264,11 +277,20 @@ Vue.component('filmstrip-animation', {
                 <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
                 <label>Slowdown factor:</label>
                 <input v-model="slowdownFactor" type="number" min="1" max="50" step="1" />
+                <br>
+                <span><kbd>Left</kbd> <kbd>Right</kbd> Change frame</span>
+                <span><kbd>m</kbd> Toggle metrics</span>
+                <span><kbd>r</kbd> Reset animation</span>
+                <span><kbd>Space</kbd> Resume/Pause</span>
             </div>
-            <button v-if="isStarted" @click="pause">Pause</button>
-            <button v-else-if="paused" @click="resume">Resume</button>
-            <button v-else @click="start">Start</button>
-            <div class="thumbnail">
+            <div class="controls">
+                <button @click="previousFrame" :disabled="this.time < this.increment">-0.1s</button>
+                <button v-if="isStarted" @click="pause">Pause</button>
+                <button v-else-if="paused && time > 0" @click="resume">Resume</button>
+                <button v-else @click="start">Start</button>
+                <button @click="nextFrame" :disabled="this.time > this.end">+0.1s</button>
+            </div>
+            <div class="thumbnail" :class="{hasMetric: !!frame.metrics.length}">
                 <img :src="frame.url" :style="{width: width + 'px'}" />
                 <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
                 <ul v-if="showTimings && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
@@ -280,13 +302,11 @@ Vue.component('filmstrip-animation', {
     `,
     props: [
         'filmstrip',
+        'increment'
     ],
     watch: { 
-        filmstrip: function(newFilmstrip) { 
-            this.time = 0;
-            this.paused = false;
-            this.end = 0;
-            this.frame = newFilmstrip[0];
+        filmstrip: function() { 
+            this.reset();
         }
     },
     data: function() { return {
@@ -296,29 +316,63 @@ Vue.component('filmstrip-animation', {
         slowdownFactor: 4,
         showTimings: false,
         width: 400,
-        paused: false
+        paused: false,
+        keydownHandler: null
     }},
+    created: function() {
+        this.reset();
+        this.keydownHandler = document.addEventListener("keydown", (event) => {
+            if (event.key == "ArrowLeft") {
+                this.previousFrame();
+            } else if (event.key == "ArrowRight") {
+                this.nextFrame();
+            } else if (event.key == " ") {
+                if (this.paused) {
+                    this.resume();
+                } else {
+                    this.pause();
+                }
+            } else if (event.key == "m") {
+                this.showTimings = !this.showTimings;
+            } else if (event.key == "r") {
+                this.reset();
+            } else {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    },
+    beforeDestroy: function() {
+        if (this.keydownHandler) {
+            window.removeEventListener("keydown", this.keydownHandler);
+            this.keydownHandler = null;
+        }
+    },
     computed: {
         isStarted: function() {
-            return this.time < this.end && !this.paused;
+            return this.time <= this.end && !this.paused;
         }
     },
     methods: {
         start: function() {
+            this.reset();
+            this.resume();
+        },
+        reset: function() {
             this.time = 0;
-            this.paused = false;
+            this.paused = true;
             this.end = this.filmstrip[this.filmstrip.length - 1].time;
-            this.changeFrame();
+            this.frame = this.filmstrip[0];
         },
         pause: function() {
             this.paused = true;
         },
         resume: function() {
             this.paused = false;
-            this.changeFrame();
+            this.animate();
         },
-        changeFrame: function() {
-            const increment = 100;
+        animate: function() {
             if (!this.isStarted) {
                 return;
             }
@@ -328,10 +382,23 @@ Vue.component('filmstrip-animation', {
             const shouldWait = this.frame.time == this.time && this.frame.metrics.some(metric => metric.highlight) && this.showTimings;
             const waitFactor = shouldWait ? 5 : 1;
             setTimeout(() => {
-                this.time += increment;
-                this.frame = this.filmstrip.find(frame => frame.time == this.time) || this.frame;
-                this.changeFrame();
-            }, increment * this.slowdownFactor * waitFactor);
+                this.nextFrame();
+                this.animate();
+            }, this.increment * this.slowdownFactor * waitFactor);
+        },
+        previousFrame: function() {
+            if (this.time >= this.increment) {
+                this.updateFrame(-this.increment);
+            }
+        },
+        nextFrame: function() {
+            if (this.time <= this.end) {
+                this.updateFrame(this.increment);
+            }
+        },
+        updateFrame: function(increment) {
+            this.time += increment;
+            this.frame = this.filmstrip.find(frame => frame.time == this.time) || this.frame;
         }
     }
 });
@@ -371,6 +438,7 @@ var app = new Vue({
         thumbnailWidth: 150,
         testUrl: "",
         showAnimation: true,
+        animationIncrement: 100,
         frameImages: []
     },
     created: function () {
@@ -417,8 +485,9 @@ var app = new Vue({
             if (!stepData) {
                 throw "Invalid test data";
             }
+            const interval = this.showAnimation ? this.animationIncrement : Number(this.interval);
             this.timings = createTimings(stepData);
-            this.filmstrip = createFilmstrip(stepData, Number(this.interval), this.timings);
+            this.filmstrip = createFilmstrip(stepData, interval, this.timings);
             this.frameImages = stepData.videoFrames.map(frame => frame.image);
             console.log(this.filmstrip);
             this.columns = Math.min(this.columns || 9999, this.filmstrip.length);
