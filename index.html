@@ -18,28 +18,26 @@
             <div class="testSelection">
                 <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
                 <button type="button" @click="loadData" class="primary">Load Test</button>
-
+                <label>Run:</label>
+                <select v-model="selectedRun" @change="updateTestData">
+                    <option v-for="i in availableRuns" :value="i">{{i}}</option>
+                </select>
                 <label>Step:</label>
-                <select v-model="selectedStep" @change="updateTestData" :disabled="!availableSteps.length">
-                    <option v-if="!availableSteps.length">Load a test first</option>
+                <select v-model="selectedStep" @change="updateTestData">
                     <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
                 </select>
-                <select v-model="showAnimation">
-                    <option :value="true">Animation</option>
-                    <option :value="false">Filmstrip</option>
-                </select>
+                <div class="button-group">
+                    <button @click="showAnimation=true" :class="{primary: showAnimation}">Animation</button>
+                    <button @click="showAnimation=false" :class="{primary: !showAnimation}">Filmstrip</button>
+                </div>
             </div>
         </div>
 
         <main>
             <div v-if="loading" class="spinner"></div>
             <p v-else-if="error" class="card error">{{ error }}</p>
-            <div v-else-if="showAnimation && stepData" class="animationView">
-                <filmstrip-animation :step-data="stepData" :timings="timings"></filmstrip-animation>
-            </div>
-            <div v-else-if="stepData" class="filmstripView">
-                <filmstrip-view :step-data="stepData" :timings="timings"></filmstrip-view>
-            </div>
+            <filmstrip-animation v-else-if="showAnimation && stepData" :step-data="stepData" :timings="timings"></filmstrip-animation>
+            <filmstrip-view v-else-if="stepData" :step-data="stepData" :timings="timings"></filmstrip-view>
         </main>
 
         <div class="collapse" v-if="timings.length">

@@ -46,7 +46,10 @@ main {
     right: 0;
     display: flex;
     flex-direction: column;
-    padding-right: 20px;
+    padding: 20px;
+    
+    top: 0;
+    background: var(--back-color);
 }
 
 .customization input{
@@ -107,7 +110,6 @@ main {
 }
 
 .thumbnail {
-    /*background: black;*/
     cursor: pointer;
     color: white;
 }

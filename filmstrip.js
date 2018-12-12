@@ -48,7 +48,7 @@ Vue.component('filmstrip-animation', {
                 <button v-else @click="start">Start</button>
                 <button @click="nextFrame" :disabled="this.time > this.end">+0.1s</button>
             </div>
-            <div v-if="frame" class="thumbnail" :class="{hasMetric: !!frame.metrics.length}">
+            <div v-if="frame" class="thumbnail" :class="{hasMetric: !!frame.metrics.length}" @click="togglePlay">
                 <img :src="frame.url" :style="{width: width + 'px'}" />
                 <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
                 <ul v-if="showTimings && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
@@ -87,11 +87,7 @@ Vue.component('filmstrip-animation', {
             } else if (event.key == "ArrowRight") {
                 this.nextFrame();
             } else if (event.key == " ") {
-                if (this.paused) {
-                    this.resume();
-                } else {
-                    this.pause();
-                }
+                this.togglePlay();
             } else if (event.key == "m") {
                 this.showTimings = !this.showTimings;
             } else if (event.key == "r") {
@@ -99,8 +95,8 @@ Vue.component('filmstrip-animation', {
             } else {
                 return;
             }
-            e.preventDefault();
-            e.stopPropagation();
+            event.preventDefault();
+            event.stopPropagation();
         });
     },
     beforeDestroy: function() {
@@ -136,6 +132,13 @@ Vue.component('filmstrip-animation', {
             this.paused = false;
             this.animate();
         },
+        togglePlay: function() {
+            if (this.paused) {
+                this.resume();
+            } else {
+                this.pause();
+            }
+        },
         animate: function() {
             if (!this.isStarted) {
                 return;
@@ -146,8 +149,10 @@ Vue.component('filmstrip-animation', {
             const shouldWait = this.frame.time == this.time && this.frame.metrics.some(metric => metric.highlight) && this.showTimings;
             const waitFactor = shouldWait ? 5 : 1;
             setTimeout(() => {
-                this.nextFrame();
-                this.animate();
+                if (this.isStarted) {
+                    this.nextFrame();
+                    this.animate();
+                }
             }, this.interval * this.slowdownFactor * waitFactor);
         },
         previousFrame: function() {
@@ -167,26 +172,28 @@ Vue.component('filmstrip-animation', {
     }
 });
 
-Vue.component('fimstrip-view', {
+Vue.component('filmstrip-view', {
     template: `
-        <div class="customization">
-            <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
-            <label>Thumbnail width:</label>
-            <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" @change="saveState" />
-            <label>Columns:</label>
-            <input v-model="columns" type="number" min="0" :max="filmstrip.length" @change="updateFilmstrip" />
-            <label>Interval (ms):</label>
-            <input v-model="interval" type="number" min="100" :max="5000" step="100" @change="updateFilmstrip" />
-        </div>
-        <div class="stage" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
-            <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
-                class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
-                <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
-                <span class="time">{{ thumbnail.timeFormatted }}</span>
-                <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics" :style="{'max-width': thumbnailWidth + 'px'}">
-                    <li v-for="metric in thumbnail.metrics"
-                        :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
-                </ul>
+        <div class="filmstripView">
+            <div class="customization">
+                <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                <label>Thumbnail width:</label>
+                <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" @change="saveState" />
+                <label>Columns:</label>
+                <input v-model="columns" type="number" min="0" :max="filmstrip.length" @change="updateFilmstrip" />
+                <label>Interval (ms):</label>
+                <input v-model="interval" type="number" min="100" :max="5000" step="100" @change="updateFilmstrip" />
+            </div>
+            <div class="stage" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
+                <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
+                    class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
+                    <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
+                    <span class="time">{{ thumbnail.timeFormatted }}</span>
+                    <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics" :style="{'max-width': thumbnailWidth + 'px'}">
+                        <li v-for="metric in thumbnail.metrics"
+                            :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
+                    </ul>
+                </div>
             </div>
         </div>
     `,
@@ -222,7 +229,7 @@ Vue.component('fimstrip-view', {
         loadState: function() {
             this.columns = Number(localStorage.getItem('filmstripView.columns')) || this.columns;
             this.interval = Number(localStorage.getItem('filmstripView.interval')) || this.interval;
-            this.interval = Number(localStorage.getItem('filmstripView.thumbnailWidth')) || this.thumbnailWidth;
+            this.thumbnailWidth = Number(localStorage.getItem('filmstripView.thumbnailWidth')) || this.thumbnailWidth;
         },
         saveState: function() {
             localStorage.setItem('filmstripView.columns', this.columns);
@@ -236,9 +243,10 @@ var app = new Vue({
     el: '#app',
     data: {
         wptUrl: "",
-        selectedRun: "1",
+        selectedRun: 1,
         selectedStep: 1,
-        availableSteps: [],
+        availableSteps: [1],
+        availableRuns: [1],
         testId: "",
         testData: null,
         error: null,
@@ -283,16 +291,22 @@ var app = new Vue({
                 .then(() => this.loading = false);
         },
         updateTestData: function() {
-            if (!(((((this.testData || {}).runs || {})[this.selectedRun] || {}).firstView || {}).steps || []).length) {
+            const runs = (this.testData || {}).runs || {};
+            this.availableRuns = Object.keys(runs);
+            this.selectedRun = this.availableRuns.find(run => run == this.selectedRun) || this.availableRuns[0];
+            if (!(((runs[this.selectedRun] || {}).firstView || {}).steps || []).length) {
+                this.error = "Invalid response data";
                 return;
             }
             const runData = this.testData.runs[this.selectedRun].firstView;
-            this.availableSteps = runData.steps.map(step => step.eventName || `Step ${step.id}`)
+            this.availableSteps = runData.steps.map(step => step.eventName || `${step.id}`);
             this.selectedStep = Math.min(this.selectedStep, runData.numSteps);
-            this.testLabel = this.testData.label + ",  " + (this.availableSteps[this.selectedStep - 1] || "");
+            const testLabel = this.testData.label || `${this.testData.url}, ${this.testData.location}`; 
+            this.testLabel = testLabel + ",  " + (this.availableSteps[this.selectedStep - 1] || "");
             this.stepData = runData.steps[this.selectedStep - 1];
             if (!this.stepData) {
-                throw "Invalid test data";
+                this.error = "Invalid test data";
+                return;
             }
             this.timings = createTimings(this.stepData);
             this.frameImages = this.stepData.videoFrames.map(frame => frame.image);
@@ -300,9 +314,13 @@ var app = new Vue({
         },
         loadState: function() {
             this.testUrl = localStorage.getItem('loadedTestUrl') || this.testUrl;
+            this.selectedStep = Number(localStorage.getItem('selectedStep')) || this.selectedStep;
+            this.selectedRun = localStorage.getItem('selectedRun') || this.selectedRun;
         },
         saveState: function() {
             localStorage.setItem('loadedTestUrl', this.testUrl);
+            localStorage.setItem('selectedStep', this.selectedStep);
+            localStorage.setItem('selectedRun', this.selectedRun);
         }
     }
 })
@@ -341,6 +359,7 @@ function createTimings(stepData) {
 }
 
 function createFilmstrip (stepData, interval, timings) {
+    interval = Number(interval);
     const end = Math.max(...timings.map(t => t.value)) * 1000;
     const filmstrip = [];
     let lastVideoFrame = null;
@@ -361,7 +380,7 @@ function createFilmstrip (stepData, interval, timings) {
 }
 
 function fetchData(wptUrl, wptTestId) {
-    const wptParams = "average=0&median=0&standard=0&requests=0&console=0"
+    const wptParams = "average=0&median=0&standard=0&requests=0&console=0&multistepFormat=1"
     return fetch(`${wptUrl}/result/${wptTestId}/?f=json&${wptParams}`)
         .then(response => response.json())
         .then(testData => {
