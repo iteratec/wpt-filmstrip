@@ -15,6 +15,7 @@
             <h2>
                 WPT Filmstrip </small><a v-if="waterfallUrl" :href="waterfallUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
             </h2>
+            <a class="github-link" href="https://github.com/iteratec/wpt-filmstrip">GitHub</a>
             <div class="testSelection">
                 <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="181122_MY_testid OR https://mywpt.com/result/181122_MY_testid" />
                 <button type="button" @click="loadData" class="primary">Load Test</button>

@@ -12,6 +12,14 @@ h2 {
     padding: 20px;
 }
 
+a.github-link {
+    position: absolute;
+    top: 0;
+    right: 10px;
+    color: #1976d2;
+    padding: 20px;
+}
+
 .testSelection {
     padding: 0 20px 20px 20px;
     display: flex;
