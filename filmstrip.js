@@ -26,7 +26,9 @@ const highlightMetrics = {
     "docTime": true,
     "FirstInteractive": true,
     "LastInteractive": true,
-    "fullyLoaded": true
+    "fullyLoaded": true,
+    "render": true,
+    "loadEventStart": true
 }
 
 Vue.component('filmstrip-animation', {
@@ -49,7 +51,7 @@ Vue.component('filmstrip-animation', {
                 <button v-else @click="start">Start</button>
                 <button @click="nextFrame" :disabled="this.time > this.end">+0.1s</button>
             </div>
-            <div v-if="frame" class="thumbnail" :class="{hasMetric: !!frame.metrics.length}" @click="togglePlay">
+            <div v-if="frame" class="thumbnail" :class="{hasMetric: !!frame.metrics.length, highlight: frame.metrics.some(m => m.highlight)}" @click="togglePlay">
                 <img :src="frame.url" :style="{width: width + 'px'}" />
                 <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
                 <ul v-if="showTimings && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
@@ -130,11 +132,14 @@ Vue.component('filmstrip-animation', {
             this.paused = true;
         },
         resume: function() {
+            if (this.time > this.end) {
+                this.time = 0;
+            }
             this.paused = false;
             this.animate();
         },
         togglePlay: function() {
-            if (this.paused) {
+            if (this.paused || this.time > this.end) {
                 this.resume();
             } else {
                 this.pause();
@@ -203,7 +208,7 @@ Vue.component('filmstrip-view', {
         "timings"
     ],
     data: function() { return {
-        showTimings: false,
+        showTimings: true,
         thumbnailWidth: 150,
         interval: 200,
         columns: 9,
@@ -212,7 +217,7 @@ Vue.component('filmstrip-view', {
     }},
     watch: { 
         stepData: function() { 
-            this.reset();
+            this.updateFilmstrip();
         }
     },
     created: function() {
@@ -281,7 +286,12 @@ var app = new Vue({
     },
     methods: {
         loadData: function() {
-            [this.wptUrl, this.testId, this.selectedStep] = parseTestUrl(this.testUrl);
+            try {
+                [this.wptUrl, this.testId] = parseTestUrl(this.testUrl);
+            } catch {
+                this.error = "Invalid URL or test ID!";
+                return;
+            }
             this.loading = true;
             fetchData(this.wptUrl, this.testId)
                 .then(response => {
@@ -302,8 +312,7 @@ var app = new Vue({
             const runData = this.testData.runs[this.selectedRun].firstView;
             this.availableSteps = runData.steps.map(step => step.eventName || `${step.id}`);
             this.selectedStep = Math.min(this.selectedStep, runData.numSteps);
-            const testLabel = this.testData.label || `${this.testData.url}, ${this.testData.location}`; 
-            this.testLabel = testLabel + ",  " + (this.availableSteps[this.selectedStep - 1] || "");
+            this.testLabel = this.testData.label || `${this.testData.url}, ${this.testData.location}`; 
             this.stepData = runData.steps[this.selectedStep - 1];
             if (!this.stepData) {
                 this.error = "Invalid test data";
@@ -311,6 +320,7 @@ var app = new Vue({
             }
             this.timings = createTimings(this.stepData);
             this.frameImages = this.stepData.videoFrames.map(frame => frame.image);
+            this.error = "";
             this.saveState();
         },
         loadState: function() {
@@ -327,12 +337,17 @@ var app = new Vue({
 })
 
 function parseTestUrl(testUrl) {
+    const testIdPattern = /([0-9]{6}_[A-Za-z0-9]{2}_[A-Za-z0-9]+)/;
+    const match = testUrl.match(testIdPattern);
+    if (!match) {
+        throw "Provide a valid test id.";
+    }
+    const testId = match[1];
+    if (testUrl.indexOf("://") < 0) {
+        return ["https://www.webpagetest.org", testId];
+    }
     const [protocol, url] = testUrl.split("://", 2);
-    const parts = url.split("/");
-    const testId = parts[1] == "result" ? parts[2] : "";
-    const stepMatches = /_step(\d+)$/.exec(parts[parts.length - 1]);
-    const step = stepMatches ? stepMatches[1] : 1;
-    return [protocol + "://" + parts[0], testId, step];
+    return [protocol + "://" + url.split("/", 1)[0], testId];
 }
 
 function createTimings(stepData) {

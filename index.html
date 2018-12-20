@@ -6,7 +6,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>WPT Filmstrip</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-    <link rel="stylesheet" href="mini-dark.min.css">
+    <link rel="stylesheet" href="https://gitcdn.link/repo/Chalarangelo/mini.css/master/dist/mini-dark.min.css">
     <link rel="stylesheet" href="filmstrip.css">
 </head>
 <body>
@@ -16,7 +16,7 @@
                 WPT Filmstrip </small><a v-if="waterfallUrl" :href="waterfallUrl" target="_blank">{{testLabel}}<span class="icon-link"></span></a> 
             </h2>
             <div class="testSelection">
-                <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="https://www.webpagetest.org/result/181122_MY_testid" />
+                <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="181122_MY_testid OR https://mywpt.com/result/181122_MY_testid" />
                 <button type="button" @click="loadData" class="primary">Load Test</button>
                 <label>Run:</label>
                 <select v-model="selectedRun" @change="updateTestData">
@@ -44,7 +44,7 @@
             <input type="checkbox" id="collapse-metrics" aria-hidden="true">
             <label for="collapse-metrics" aria-hidden="true">Show Metrics</label>
             <div class="card fluid">
-                <table class="horizontal">
+                <table class="horizontal striped">
                     <thead>
                         <tr>
                             <th v-for="timing in timings">{{ timing.name }}</th>
