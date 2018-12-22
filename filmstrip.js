@@ -41,7 +41,7 @@ const STATE_DEFAULTS = {
     run: 1,
     step: 1,
     interval: 500,
-    columns: 9,
+    columns: 10,
     thumbnailWidth: 150,
     showMetrics: true
 };
