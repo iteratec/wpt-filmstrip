@@ -17,19 +17,19 @@
             </h2>
             <a class="github-link" href="https://github.com/iteratec/wpt-filmstrip">GitHub</a>
             <div class="testSelection">
-                <input class="testUrl" v-model="testUrl" @change="loadData" placeholder="181122_MY_testid OR https://mywpt.com/result/181122_MY_testid" />
+                <input class="testUrl" :value="state.testUrl" @change="loadDataByUrl($event.target.value)" placeholder="181122_MY_testid OR https://mywpt.com/result/181122_MY_testid" />
                 <button type="button" @click="loadData" class="primary">Load Test</button>
                 <label>Run:</label>
-                <select v-model="selectedRun" @change="updateTestData">
+                <select :value="state.run" @change="selectRun($event.target.value)">
                     <option v-for="i in availableRuns" :value="i">{{i}}</option>
                 </select>
                 <label>Step:</label>
-                <select v-model="selectedStep" @change="updateTestData">
+                <select :value="state.step" @change="selectStep($event.target.value)">
                     <option v-for="(name, index) in availableSteps" :value="index + 1">{{name}}</option>
                 </select>
                 <div class="button-group">
-                    <button @click="showAnimation=true" :class="{primary: showAnimation}">Animation</button>
-                    <button @click="showAnimation=false" :class="{primary: !showAnimation}">Filmstrip</button>
+                    <button @click="store.setView('animation')" :class="{primary: showAnimation}">Animation</button>
+                    <button @click="store.setView('filmstrip')" :class="{primary: !showAnimation}">Filmstrip</button>
                 </div>
             </div>
         </div>

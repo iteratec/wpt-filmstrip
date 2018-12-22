@@ -31,11 +31,120 @@ const highlightMetrics = {
     "loadEventStart": true
 }
 
+const OFFICIAL_WPT_URL = "https://www.webpagetest.org";
+
+const STATE_DEFAULTS = {
+    wptUrl: OFFICIAL_WPT_URL,
+    testId: "",
+    testUrl: "",
+    view: "animation",
+    run: 1,
+    step: 1,
+    interval: 500,
+    columns: 9,
+    thumbnailWidth: 150,
+    showMetrics: true
+};
+
+const STATE_PARAMS = {
+    numbers: ["run", "step", "interval", "columns", "thumbnailWidth"],
+    strings: ["testId", "wptUrl", "view"],
+    booleans: ["showMetrics"],
+    decode(key, value) {
+        if (this.numbers.indexOf(key) >= 0) {
+            return Number(value);
+        }
+        if (this.booleans.indexOf(key) >= 0) {
+            return value && value != "false" && value != "null";
+        }
+        return decodeURIComponent(value);
+    },
+    contains(key) {
+        return this.strings.indexOf(key) >= 0 || this.numbers.indexOf(key) >= 0 || this.booleans.indexOf(key) >= 0;
+    }
+}
+
+const store = {
+    state: Object.assign({}, STATE_DEFAULTS),
+    setMinorSetting(key, value) {
+        this.state[key] = value;
+        this.saveMinorChanges();
+    },
+    setView(view) {
+        if ((view != "animation" && view != "filmstrip") || view == this.state.view) {
+            return;
+        }
+        this.state.view = view;
+        this.saveChanges();
+    },
+    toggleMetrics(enabled) {
+        if (enabled == this.state.showMetrics) {
+            return;
+        }
+        this.state.showMetrics = enabled;
+        this.saveChanges();
+    },
+    setRun(run) {
+        if (!run || run == this.state.run) {
+            return;
+        }
+        this.state.run = run;
+        this.saveChanges();
+    },
+    setStep(step) {
+        if (!step || step == this.state.step) {
+            return;
+        }
+        this.state.step = step;
+        this.saveChanges();
+    },
+    setTest(wptUrl, testId) {
+        if (this.state.wptUrl == wptUrl && this.state.testId) {
+            return;
+        }
+        this.state.wptUrl = wptUrl;
+        this.state.testId = testId;
+        this.updateTestUrl();
+        this.saveChanges();
+    },
+    updateTestUrl() {
+        this.state.testUrl = this.state.wptUrl == OFFICIAL_WPT_URL
+          ? this.state.testId
+          : `${this.state.wptUrl}/result/${this.state.testId}`;
+    },
+    loadState() {
+        Object.assign(this.state, this.decodeState(window.location.hash));
+        this.updateTestUrl();
+    },
+    saveChanges() {
+        window.history.pushState(null, null, "#" + this.encodeState(this.state));
+    },
+    saveMinorChanges() {
+        window.history.replaceState(null, null, "#" + this.encodeState(this.state));
+    },
+    decodeState(parameters) {
+        parameters = parameters.startsWith("#") ? parameters.substr(1) : parameters;
+        return parameters.split("&").reduce((state, keyValue) => {
+            const [key, value] = keyValue.split("=");
+            if (STATE_PARAMS.contains(key)) {
+                state[key] = STATE_PARAMS.decode(key, value);
+            }
+            return state;
+        }, Object.assign({}, STATE_DEFAULTS));
+    },
+    encodeState(state) {
+        return Object.keys(state)
+            .filter(key => state[key] != STATE_DEFAULTS[key] && STATE_PARAMS.contains(key))
+            .map(key => key + "=" + encodeURIComponent(state[key]))
+            .join("&");
+    }
+}
+
 Vue.component('filmstrip-animation', {
     template: `
         <div class="animationView">
             <div class="customization">
-                <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                <label><input :checked="state.showMetrics" type="checkbox" @change="store.toggleMetrics($event.target.checked)" /> Show metrics</label>
                 <label>Slowdown factor:</label>
                 <input v-model="slowdownFactor" type="number" min="1" max="50" step="1" />
                 <br>
@@ -54,7 +163,7 @@ Vue.component('filmstrip-animation', {
             <div v-if="frame" class="thumbnail" :class="{hasMetric: !!frame.metrics.length, highlight: frame.metrics.some(m => m.highlight)}" @click="togglePlay">
                 <img :src="frame.url" :style="{width: width + 'px'}" />
                 <span class="time">{{ (time / 1000).toFixed(1) }}s</span>
-                <ul v-if="showTimings && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
+                <ul v-if="state.showMetrics && frame.metrics.length" class="metrics" :style="{'max-width': width + 'px'}">
                     <li v-for="metric in frame.metrics"
                         :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
                 </ul>
@@ -72,10 +181,11 @@ Vue.component('filmstrip-animation', {
     },
     data: function() { return {
         frame: null,
+        store: store,
+        state: store.state,
         time: 0,
         end: 0,
         slowdownFactor: 4,
-        showTimings: false,
         width: 400,
         paused: false,
         keydownHandler: null,
@@ -92,7 +202,7 @@ Vue.component('filmstrip-animation', {
             } else if (event.key == " ") {
                 this.togglePlay();
             } else if (event.key == "m") {
-                this.showTimings = !this.showTimings;
+                store.toggleMetrics(!this.state.showMetrics);
             } else if (event.key == "r") {
                 this.reset();
             } else {
@@ -152,7 +262,7 @@ Vue.component('filmstrip-animation', {
             if (this.time == 0) {
                 this.frame = this.filmstrip[0];
             }
-            const shouldWait = this.frame.time == this.time && this.frame.metrics.some(metric => metric.highlight) && this.showTimings;
+            const shouldWait = this.frame.time == this.time && this.frame.metrics.some(metric => metric.highlight) && this.state.showMetrics;
             const waitFactor = shouldWait ? 5 : 1;
             setTimeout(() => {
                 if (this.isStarted) {
@@ -182,20 +292,20 @@ Vue.component('filmstrip-view', {
     template: `
         <div class="filmstripView">
             <div class="customization">
-                <label><input v-model="showTimings" type="checkbox" /> Show metrics</label>
+                <label><input :checked="state.showMetrics" type="checkbox" @change="store.toggleMetrics($event.target.checked)" /> Show metrics</label>
                 <label>Thumbnail width:</label>
-                <input v-model="thumbnailWidth" type="number" min="50" max="400" step="50" @change="saveState" />
+                <input :value="state.thumbnailWidth" type="number" min="50" max="400" step="50" @change="store.setMinorSetting('thumbnailWidth', Number($event.target.value))" />
                 <label>Columns:</label>
-                <input v-model="columns" type="number" min="0" :max="filmstrip.length" @change="updateFilmstrip" />
+                <input :value="state.columns" type="number" min="0" :max="filmstrip.length" @change="store.setMinorSetting('columns', Number($event.target.value))" />
                 <label>Interval (ms):</label>
-                <input v-model="interval" type="number" min="100" :max="5000" step="100" @change="updateFilmstrip" />
+                <input :value="state.interval" type="number" min="100" :max="5000" step="100" @change="updateInterval($event.target.value)" />
             </div>
-            <div class="stage" :style="{'grid-template-columns': 'repeat(' + columns + ', max-content)'}">
-                <div v-for="thumbnail in this.filmstrip" @click="showTimings = !showTimings"
+            <div class="stage" :style="{'grid-template-columns': 'repeat(' + state.columns + ', max-content)'}">
+                <div v-for="thumbnail in this.filmstrip"
                     class="thumbnail" :class="{hasChange: thumbnail.hasChange}">
-                    <img :src="thumbnail.url" :style="{width: thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
+                    <img :src="thumbnail.url" :style="{width: state.thumbnailWidth + 'px'}" :title="thumbnail.visuallyComplete + '% Visual Progress'" />
                     <span class="time">{{ thumbnail.timeFormatted }}</span>
-                    <ul v-if="!!thumbnail.metrics.length && showTimings" class="metrics" :style="{'max-width': thumbnailWidth + 'px'}">
+                    <ul v-if="!!thumbnail.metrics.length && state.showMetrics" class="metrics" :style="{'max-width': state.thumbnailWidth + 'px'}">
                         <li v-for="metric in thumbnail.metrics"
                             :class="{custom: metric.type != 'metric', highlight: metric.highlight}">{{ metric.name }} ({{metric.value.toFixed(1) + "s"}})</li>
                     </ul>
@@ -208,11 +318,8 @@ Vue.component('filmstrip-view', {
         "timings"
     ],
     data: function() { return {
-        showTimings: true,
-        thumbnailWidth: 150,
-        interval: 200,
-        columns: 9,
-        interval: 500,
+        store: store,
+        state: store.state,
         filmstrip: []
     }},
     watch: { 
@@ -221,26 +328,18 @@ Vue.component('filmstrip-view', {
         }
     },
     created: function() {
-        this.loadState();
         this.updateFilmstrip();
     },
     methods: {
+        updateInterval: function(interval) {
+            store.setMinorSetting("interval", Number(interval));
+            this.updateFilmstrip();
+        },
         updateFilmstrip: function() {
             if (!this.stepData) {
                 return;
             }
-            this.filmstrip = createFilmstrip(this.stepData, this.interval, this.timings)
-            this.saveState();
-        },
-        loadState: function() {
-            this.columns = Number(localStorage.getItem('filmstripView.columns')) || this.columns;
-            this.interval = Number(localStorage.getItem('filmstripView.interval')) || this.interval;
-            this.thumbnailWidth = Number(localStorage.getItem('filmstripView.thumbnailWidth')) || this.thumbnailWidth;
-        },
-        saveState: function() {
-            localStorage.setItem('filmstripView.columns', this.columns);
-            localStorage.setItem('filmstripView.interval', this.interval);
-            localStorage.setItem('filmstripView.thumbnailWidth', this.thumbnailWidth);
+            this.filmstrip = createFilmstrip(this.stepData, this.state.interval, this.timings)
         }
     }
 });
@@ -248,103 +347,109 @@ Vue.component('filmstrip-view', {
 var app = new Vue({
     el: '#app',
     data: {
-        wptUrl: "",
-        selectedRun: 1,
-        selectedStep: 1,
+        state: store.state,
+        store: store,
         availableSteps: [1],
         availableRuns: [1],
-        testId: "",
         testData: null,
         error: null,
         stepData: null,
         timings: [],
         testLabel: "",
         loading: false,
-        testUrl: "",
-        showAnimation: true,
         frameImages: []
     },
     created: function () {
         this.loadState();
-        if (this.testUrl) {
-            this.loadData();
-        }
+        window.onpopstate = () => this.loadState();
     },
     computed: {
-        waterfallUrl: function() {
-            if (!this.testData || !this.testId) {
-                return null;
-            }
-            return `${this.wptUrl}/result/${this.testId}/${this.selectedRun}/details/#waterfall_view_step${this.selectedStep}`;
+        showAnimation: function() {
+            return this.state.view == "animation";
         },
-        videoUrl: function() {
-            if (!this.testData || !this.testId) {
+        waterfallUrl: function() {
+            if (!this.testData || !this.state.testId) {
                 return null;
             }
-            return `${this.wptUrl}/video/create.php?tests=${this.testId}-r:${this.selectedRun}-c:0-s:${this.selectedStep}&id=${this.testId}${this.selectedRun}${this.selectedStep}`;
+            return `${this.state.wptUrl}/result/${this.state.testId}/${this.state.run}/details/#waterfall_view_step${this.state.step}`;
         }
     },
     methods: {
-        loadData: function() {
-            try {
-                [this.wptUrl, this.testId] = parseTestUrl(this.testUrl);
-            } catch {
-                this.error = "Invalid URL or test ID!";
-                return;
+        loadState: function() {
+            store.loadState();
+            if (this.state.testId) {
+                this.loadData();
             }
+        },
+        loadDataByUrl: function(testUrl) {
+            try {
+                const [wptUrl, testId] = parseTestUrl(testUrl);
+                store.setTest(wptUrl, testId);
+                this.loadData();
+            } catch (error) {
+                console.error(error);
+                this.error = `Invalid URL or test ID!: ${error}`;
+            }
+        },
+        loadData: function() {
             this.loading = true;
-            fetchData(this.wptUrl, this.testId)
+            fetchData(this.state.wptUrl, this.state.testId)
                 .then(response => {
                     this.testData = response.data;
-                    this.updateTestData();
+                    this.updateTestData(this.state.run, this.state.step);
                 })
                 .catch(error => this.error = "Failed to load data: " + error)
                 .then(() => this.loading = false);
         },
-        updateTestData: function() {
+        selectRun: function(run) {
+            this.updateTestData(Number(run), this.state.step);
+        },
+        selectStep: function(step) {
+            this.updateTestData(this.state.run, Number(step));
+        },
+        updateTestData: function(selectedRun, selectedStep) {
             const runs = (this.testData || {}).runs || {};
             this.availableRuns = Object.keys(runs);
-            this.selectedRun = this.availableRuns.find(run => run == this.selectedRun) || this.availableRuns[0];
-            if (!(((runs[this.selectedRun] || {}).firstView || {}).steps || []).length) {
+            selectedRun = this.availableRuns.find(run => run == selectedRun) || this.availableRuns[0];
+            store.setRun(selectedRun);
+            if (!(((runs[selectedRun] || {}).firstView || {}).steps || []).length) {
                 this.error = "Invalid response data";
                 return;
             }
-            const runData = this.testData.runs[this.selectedRun].firstView;
+            const runData = this.testData.runs[selectedRun].firstView;
             this.availableSteps = runData.steps.map(step => step.eventName || `${step.id}`);
-            this.selectedStep = Math.min(this.selectedStep, runData.numSteps);
+            selectedStep = Math.min(selectedStep, runData.numSteps);
+            store.setStep(selectedStep);
             this.testLabel = this.testData.label || `${this.testData.url}, ${this.testData.location}`; 
-            this.stepData = runData.steps[this.selectedStep - 1];
+            this.stepData = runData.steps[selectedStep - 1];
             if (!this.stepData) {
                 this.error = "Invalid test data";
+                return;
+            }
+            if (!this.stepData.videoFrames) {
+                this.error = "The test data doesn't include video data. Make sure the 'Capture Video' option was enabled."
                 return;
             }
             this.timings = createTimings(this.stepData);
             this.frameImages = this.stepData.videoFrames.map(frame => frame.image);
             this.error = "";
-            this.saveState();
         },
-        loadState: function() {
-            this.testUrl = localStorage.getItem('loadedTestUrl') || this.testUrl;
-            this.selectedStep = Number(localStorage.getItem('selectedStep')) || this.selectedStep;
-            this.selectedRun = localStorage.getItem('selectedRun') || this.selectedRun;
-        },
-        saveState: function() {
-            localStorage.setItem('loadedTestUrl', this.testUrl);
-            localStorage.setItem('selectedStep', this.selectedStep);
-            localStorage.setItem('selectedRun', this.selectedRun);
-        }
     }
 })
 
-function parseTestUrl(testUrl) {
+function extractTestId(testUrl) {
     const testIdPattern = /([0-9]{6}_[A-Za-z0-9]{2}_[A-Za-z0-9]+)/;
     const match = testUrl.match(testIdPattern);
-    if (!match) {
+    return match ? match[1] : null;
+}
+
+function parseTestUrl(testUrl) {
+    const testId = extractTestId(testUrl);
+    if (!testId) {
         throw "Provide a valid test id.";
     }
-    const testId = match[1];
     if (testUrl.indexOf("://") < 0) {
-        return ["https://www.webpagetest.org", testId];
+        return [OFFICIAL_WPT_URL, testId];
     }
     const [protocol, url] = testUrl.split("://", 2);
     return [protocol + "://" + url.split("/", 1)[0], testId];
