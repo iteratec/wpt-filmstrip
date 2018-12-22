@@ -164,3 +164,7 @@ main {
 .framePreload {
     display: none;
 }
+
+.collapse>:checked+label+div {
+    max-height: 100%;
+}
