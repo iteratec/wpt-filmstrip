@@ -39,6 +39,11 @@
             <p v-else-if="error" class="card error">{{ error }}</p>
             <filmstrip-animation v-else-if="showAnimation && stepData" :step-data="stepData" :timings="timings"></filmstrip-animation>
             <filmstrip-view v-else-if="stepData" :step-data="stepData" :timings="timings"></filmstrip-view>
+            <div v-else class="empty-state">
+                <h3>Run a test on <a :href="state.wptUrl" target="_blank">WebPagetest</a> and enter the result URL or test ID to explore its filmstrip.</h3>
+                <p>Example: <a href="https://iteratec.github.io/wpt-filmstrip/#testId=181222_H8_48d7b7cb240cb62a7f4faa4b38482501&run=2&step=2">https://iteratec.github.io/wpt-filmstrip/#testId=181222_H8_48d7b7cb240cb62a7f4faa4b38482501&run=2&step=2</a></p>
+                <p>Check out the <a href="https://github.com/iteratec/wpt-filmstrip">documentation</a> for more information.</p>
+            </div>
         </main>
 
         <div class="collapse" v-if="timings.length">
