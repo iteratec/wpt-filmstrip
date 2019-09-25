@@ -9,6 +9,7 @@ const metrics = {
     "domContentLoadedEventStart": "DOM Content Loaded",
     "domInteractive": "DOM Interactive",
     "firstContentfulPaint": "First Contentful Paint",
+    "firstPaint": "First Paint",
     "firstMeaningfulPaint": "First Meaningful Paint",
     "fullyLoaded": "Fully Loaded",
     "lastVisualChange": "Last Visual Change",
