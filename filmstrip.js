@@ -494,7 +494,7 @@ function createFilmstrip (stepData, interval, timings) {
             url: videoFrame.image,
             frameTime: videoFrame.time,
             hasChange: !lastVideoFrame || lastVideoFrame.time != videoFrame.time,
-            metrics: findTimings(timings, time - interval, time)
+            metrics: findTimings(timings, time, interval)
         });
         lastVideoFrame = videoFrame;
     }
@@ -525,6 +525,8 @@ function findFrame(videoFrames, time) {
     return frame;
 }
 
-function findTimings(timings, start, end) {
+function findTimings(timings, time, interval) {
+	const start = time - interval / 2;
+	const end = time + interval / 2;
     return timings.filter(timing => timing.value > start / 1000 && timing.value <= end / 1000);
 }
